@@ -15,6 +15,7 @@ export interface ScraperConfig {
   headed: boolean;
   resumeMode: ResumeMode;
   outputCsvPath: string;
+  summaryPath: string;
   statePath: string;
   browserProfileDir: string;
   navigationTimeoutMs: number;
@@ -28,6 +29,7 @@ export interface RawScraperConfig
   city?: string;
   country?: string;
   searchTerm?: string;
+  searchTerms?: string[];
   depth?: number;
   resumeMode?: string;
 }
@@ -67,4 +69,25 @@ export interface ScraperState {
   failedUrls: string[];
   cursor: number;
   updatedAt: string;
+}
+
+export interface RunSummary {
+  city: string;
+  country: string;
+  searchTerm: string;
+  depth: number;
+  outputCsvPath: string;
+  statePath: string;
+  summaryPath: string;
+  discoveredVenues: number;
+  completedVenues: number;
+  failedVenues: number;
+  csvRows: number;
+  okRows: number;
+  partialRows: number;
+  failedRows: number;
+  deletionNoticesFound: number;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
 }

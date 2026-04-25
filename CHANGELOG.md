@@ -29,3 +29,6 @@
 - Waited for rate-limit pages to finish loading before recording the venue and continuing.
 - Improved hotel-result discovery by scrolling the Maps feed directly and waiting for lazy-loaded place links.
 - Parsed German number-word deletion ranges such as "Zwei bis fünf Bewertungen".
+- Added JSON run summaries and console summary output after each scrape.
+- Added CLI overrides for city, country, search terms, depth, resume mode, paths, and headed/headless mode.
+- Added batch mode via `searchTerms` or `--search-terms` to run multiple venue types sequentially.

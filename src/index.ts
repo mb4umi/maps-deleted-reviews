@@ -1,31 +1,29 @@
 #!/usr/bin/env node
 
 import { copyFile, access } from 'node:fs/promises';
-import { loadConfig } from './config.js';
+import { parseCliArgs } from './cli.js';
+import { loadConfigs } from './config.js';
 import { runScraper } from './mapsScraper.js';
+import { formatRunSummary, writeRunSummary } from './summary.js';
 
 async function main(): Promise<void> {
-  const configPath = getConfigPath(process.argv.slice(2));
+  const cli = parseCliArgs(process.argv.slice(2));
+  const configPath = cli.configPath;
   await ensureConfigExists(configPath);
-  const config = await loadConfig(configPath);
+  const configs = await loadConfigs(configPath, cli.overrides);
 
-  console.log(
-    `Scraping ${config.depth} "${config.searchTerm}" venues in ${config.city}, ${config.country}.`,
-  );
-  console.log(`Output: ${config.outputCsvPath}`);
-  console.log(`State: ${config.statePath}`);
+  for (const config of configs) {
+    console.log(
+      `Scraping ${config.depth} "${config.searchTerm}" venues in ${config.city}, ${config.country}.`,
+    );
+    console.log(`Output: ${config.outputCsvPath}`);
+    console.log(`State: ${config.statePath}`);
 
-  await runScraper(config);
-  console.log('Done.');
-}
-
-function getConfigPath(args: string[]): string {
-  const configIndex = args.findIndex((arg) => arg === '--config' || arg === '-c');
-  if (configIndex >= 0) {
-    return args[configIndex + 1] ?? 'config.json';
+    const summary = await runScraper(config);
+    await writeRunSummary(summary);
+    console.log(formatRunSummary(summary));
   }
-
-  return args[0] ?? 'config.json';
+  console.log('Done.');
 }
 
 async function ensureConfigExists(configPath: string): Promise<void> {

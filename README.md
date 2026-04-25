@@ -49,10 +49,12 @@ Common fields:
 - `city`: city to search, for example `Bonn`.
 - `country`: country context, for example `Germany`.
 - `searchTerm`: venue type, for example `restaurant`, `Café`, `bar`, or `hotel`.
+- `searchTerms`: optional batch mode array, for example `["restaurant", "Cafe", "Hotel"]`.
 - `depth`: maximum number of venues to collect from Google Maps search results.
 - `resumeMode`: `pause` keeps the browser open when Google blocks or asks for manual action; `stop` saves state and exits.
 - `outputCsvPath`: optional CSV output override. If omitted, the default is generated from the config, for example `output/deleted-reviews-bonn-restaurant.csv`.
-- `statePath`: resumable checkpoint path.
+- `summaryPath`: optional JSON run summary path. If omitted, the default is generated from the config.
+- `statePath`: optional resumable checkpoint path. If omitted, the default is generated from the config.
 - `actionDelay`: random delay range between browser actions.
 
 ## Running
@@ -67,6 +69,18 @@ Or with a custom config path:
 npm start -- --config config.json
 ```
 
+Override config values from the command line:
+
+```bash
+npm start -- --city Köln --country Germany --search-term Hotel --depth 100 --headless
+```
+
+Run multiple venue types sequentially:
+
+```bash
+npm start -- --city Bonn --country Germany --search-terms restaurant,Cafe,Hotel --depth 50
+```
+
 For a first smoke test, set `depth` to `3`.
 
 ## Resume Behavior
@@ -79,17 +93,18 @@ With `resumeMode: "stop"`, the process exits cleanly after saving state. Run the
 
 ## CSV Columns
 
+- `venue_type`
 - `name`
-- `address`
-- `url`
 - `total_reviews`
 - `deleted_reviews_min`
 - `deleted_reviews_max`
-- `deleted_reviews_estimate`
-- `current_star_rating`
 - `percentage_deleted`
-- `real_score_if_deleted_are_1star`
-- `deleted_review_notice`
+- `current_star_rating`
+- `real_score`
+- `review_notice`
+- `url`
+- `address`
+- `deleted_reviews_estimate`
 - `status`
 - `error`
 - `scraped_at`

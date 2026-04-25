@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeConfig } from '../src/config.js';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach } from 'vitest';
+import { loadConfigs, normalizeConfig, normalizeConfigs } from '../src/config.js';
+
+let tempDir: string | undefined;
+
+afterEach(async () => {
+  if (tempDir) {
+    await rm(tempDir, { force: true, recursive: true });
+    tempDir = undefined;
+  }
+});
 
 describe('normalizeConfig', () => {
   it('applies safe defaults around a minimal user config', () => {
@@ -19,6 +32,7 @@ describe('normalizeConfig', () => {
       resumeMode: 'pause',
       headed: true,
       outputCsvPath: 'output/deleted-reviews-bonn-restaurant.csv',
+      summaryPath: 'output/summary-bonn-restaurant.json',
       statePath: 'output/state-bonn-restaurant.json',
     });
   });
@@ -44,7 +58,54 @@ describe('normalizeConfig', () => {
     });
 
     expect(config.outputCsvPath).toBe('output/deleted-reviews-munchen-cafe-bar.csv');
+    expect(config.summaryPath).toBe('output/summary-munchen-cafe-bar.json');
     expect(config.statePath).toBe('output/state-munchen-cafe-bar.json');
+  });
+
+  it('expands searchTerms into multiple configs', () => {
+    const configs = normalizeConfigs({
+      city: 'Bonn',
+      country: 'Germany',
+      searchTerms: ['restaurant', 'Cafe'],
+      depth: 10,
+    });
+
+    expect(configs.map((config) => config.searchTerm)).toEqual(['restaurant', 'Cafe']);
+    expect(configs.map((config) => config.outputCsvPath)).toEqual([
+      'output/deleted-reviews-bonn-restaurant.csv',
+      'output/deleted-reviews-bonn-cafe.csv',
+    ]);
+  });
+
+  it('rejects shared output paths for batch configs', () => {
+    expect(() =>
+      normalizeConfigs({
+        city: 'Bonn',
+        country: 'Germany',
+        searchTerms: ['restaurant', 'Cafe'],
+        depth: 10,
+        outputCsvPath: 'output/shared.csv',
+      }),
+    ).toThrow(/cannot be set when using searchTerms/);
+  });
+
+  it('lets a CLI searchTerm override a batch config', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'maps-config-'));
+    const configPath = join(tempDir, 'config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        city: 'Bonn',
+        country: 'Germany',
+        searchTerms: ['restaurant', 'Cafe'],
+        depth: 10,
+      }),
+      'utf8',
+    );
+
+    const configs = await loadConfigs(configPath, { searchTerm: 'Hotel' });
+
+    expect(configs.map((config) => config.searchTerm)).toEqual(['Hotel']);
   });
 
   it('rejects invalid depth and resume mode values', () => {

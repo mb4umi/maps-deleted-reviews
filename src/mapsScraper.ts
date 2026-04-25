@@ -17,7 +17,7 @@ import {
   saveState,
   upsertDiscoveredVenue,
 } from './state.js';
-import type { ScrapedVenue, ScraperConfig, ScraperState, Venue } from './types.js';
+import type { RunSummary, ScrapedVenue, ScraperConfig, ScraperState, Venue } from './types.js';
 
 type BlockerKind = 'rate-limit' | 'sign-in';
 
@@ -26,7 +26,8 @@ interface Blocker {
   message: string;
 }
 
-export async function runScraper(config: ScraperConfig): Promise<void> {
+export async function runScraper(config: ScraperConfig): Promise<RunSummary> {
+  const startedAt = new Date();
   const state = await loadOrCreateState(config.statePath, getRunKey(config));
   const rows = await loadExistingRows(config.outputCsvPath);
   if (reconcileStateWithRows(state, rows)) {
@@ -49,12 +50,43 @@ export async function runScraper(config: ScraperConfig): Promise<void> {
   } finally {
     await context.close();
   }
+
+  return createRunSummary(config, state, rows, startedAt);
 }
 
 function getRunKey(config: ScraperConfig): string {
   return [config.city, config.country, config.searchTerm]
     .map((part) => part.trim().toLowerCase())
     .join('::');
+}
+
+function createRunSummary(
+  config: ScraperConfig,
+  state: ScraperState,
+  rows: ScrapedVenue[],
+  startedAt: Date,
+): RunSummary {
+  const finishedAt = new Date();
+  return {
+    city: config.city,
+    country: config.country,
+    searchTerm: config.searchTerm,
+    depth: config.depth,
+    outputCsvPath: config.outputCsvPath,
+    statePath: config.statePath,
+    summaryPath: config.summaryPath,
+    discoveredVenues: state.discoveredVenues.length,
+    completedVenues: state.completedUrls.length,
+    failedVenues: state.failedUrls.length,
+    csvRows: rows.length,
+    okRows: rows.filter((row) => row.status === 'ok').length,
+    partialRows: rows.filter((row) => row.status === 'partial').length,
+    failedRows: rows.filter((row) => row.status === 'failed').length,
+    deletionNoticesFound: rows.filter((row) => row.deletedReviewNotice).length,
+    startedAt: startedAt.toISOString(),
+    finishedAt: finishedAt.toISOString(),
+    durationMs: finishedAt.getTime() - startedAt.getTime(),
+  };
 }
 
 async function discoverVenues(

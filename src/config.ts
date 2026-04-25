@@ -3,7 +3,7 @@ import type { RawScraperConfig, ScraperConfig } from './types.js';
 
 const DEFAULT_CONFIG: Omit<
   ScraperConfig,
-  'city' | 'country' | 'searchTerm' | 'depth' | 'outputCsvPath' | 'statePath'
+  'city' | 'country' | 'searchTerm' | 'depth' | 'outputCsvPath' | 'summaryPath' | 'statePath'
 > = {
   locale: 'de-DE',
   googleMapsUrl: 'https://www.google.de/maps',
@@ -22,6 +22,39 @@ const DEFAULT_CONFIG: Omit<
 export async function loadConfig(configPath: string): Promise<ScraperConfig> {
   const raw = await readFile(configPath, 'utf8');
   return normalizeConfig(JSON.parse(raw) as RawScraperConfig);
+}
+
+export async function loadConfigs(
+  configPath: string,
+  overrides: RawScraperConfig = {},
+): Promise<ScraperConfig[]> {
+  const raw = await readFile(configPath, 'utf8');
+  const merged = { ...(JSON.parse(raw) as RawScraperConfig), ...overrides };
+  if (overrides.searchTerm && !overrides.searchTerms) {
+    merged.searchTerms = undefined;
+  }
+  return normalizeConfigs(merged);
+}
+
+export function normalizeConfigs(raw: RawScraperConfig): ScraperConfig[] {
+  const searchTerms = raw.searchTerms?.length ? raw.searchTerms : undefined;
+  if (!searchTerms) {
+    return [normalizeConfig(raw)];
+  }
+
+  if (raw.outputCsvPath || raw.statePath || raw.summaryPath) {
+    throw new Error(
+      'Invalid config: outputCsvPath, statePath, and summaryPath cannot be set when using searchTerms',
+    );
+  }
+
+  return searchTerms.map((searchTerm) =>
+    normalizeConfig({
+      ...raw,
+      searchTerm,
+      searchTerms: undefined,
+    }),
+  );
 }
 
 export function normalizeConfig(raw: RawScraperConfig): ScraperConfig {
@@ -62,6 +95,7 @@ export function normalizeConfig(raw: RawScraperConfig): ScraperConfig {
     ...merged,
     outputCsvPath:
       raw.outputCsvPath ?? `output/deleted-reviews-${slugify(merged.city)}-${slugify(merged.searchTerm)}.csv`,
+    summaryPath: raw.summaryPath ?? `output/summary-${slugify(merged.city)}-${slugify(merged.searchTerm)}.json`,
     statePath: raw.statePath ?? `output/state-${slugify(merged.city)}-${slugify(merged.searchTerm)}.json`,
   } as ScraperConfig;
 }
