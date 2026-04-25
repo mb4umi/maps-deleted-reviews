@@ -3,6 +3,7 @@ import { upsertScrapedRow } from '../src/mapsScraper.js';
 import type { ScrapedVenue } from '../src/types.js';
 
 const baseRow: ScrapedVenue = {
+  venueType: 'restaurant',
   name: 'Da Verdi',
   url: 'https://maps.example/da-verdi',
   totalReviews: null,

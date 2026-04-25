@@ -46,6 +46,7 @@ export interface DeletedReviews {
 }
 
 export interface ScrapedVenue extends Venue {
+  venueType: string;
   totalReviews: number | null;
   deletedReviewsMin: number;
   deletedReviewsMax: number;

@@ -20,6 +20,7 @@ describe('writeCsv', () => {
 
     await writeCsv(outputPath, [
       {
+        venueType: 'restaurant',
         name: 'Cafe "Bonn"',
         url: 'https://maps.example/a',
         address: 'Innenstadt, Bonn',
@@ -39,8 +40,8 @@ describe('writeCsv', () => {
 
     expect(await readFile(outputPath, 'utf8')).toBe(
       [
-        'name,address,url,total_reviews,deleted_reviews_min,deleted_reviews_max,deleted_reviews_estimate,current_star_rating,percentage_deleted,real_score_if_deleted_are_1star,deleted_review_notice,status,error,scraped_at',
-        '"Cafe ""Bonn""","Innenstadt, Bonn",https://maps.example/a,100,10,20,15,4.5,0.1304,4.0435,10 bis 20 Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt.,ok,,2026-04-25T17:30:00.000Z',
+        'venue_type,name,total_reviews,deleted_reviews_min,deleted_reviews_max,percentage_deleted,current_star_rating,real_score,review_notice,url,address,deleted_reviews_estimate,status,error,scraped_at',
+        'restaurant,"Cafe ""Bonn""",100,10,20,13.04,4.5,4.0435,10 bis 20 Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt.,https://maps.example/a,"Innenstadt, Bonn",15,ok,,2026-04-25T17:30:00.000Z',
         '',
       ].join('\n'),
     );

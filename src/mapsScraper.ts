@@ -56,8 +56,7 @@ async function discoverVenues(
   await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
   await maybeAcceptConsent(page);
   await handleBlocker(page, config, state);
-  await page.waitForLoadState('networkidle').catch(() => undefined);
-  await randomDelay(config);
+  await waitForFirstSearchResult(page);
 
   let unchangedScrolls = 0;
   for (let scrolls = 0; scrolls < config.maxResultScrolls; scrolls += 1) {
@@ -103,23 +102,21 @@ async function scrapeVenues(
       await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
       await maybeAcceptConsent(page);
       await handleBlocker(page, config, state);
-      await page.waitForLoadState('networkidle').catch(() => undefined);
-      await randomDelay(config);
+      await waitForVenueShell(page, venue);
 
-      const scraped = await scrapeVenue(page, venue);
+      const scraped = await scrapeVenue(page, venue, config.searchTerm);
       upsertScrapedRow(rows, scraped);
       alreadyOutput.add(scraped.url);
 
       markVenueCompleted(state, venue.url);
       await saveState(config.statePath, state);
       await writeCsv(config.outputCsvPath, rows);
-      await randomDelay(config);
     } catch (error) {
       markVenueFailed(state, venue.url);
       await saveState(config.statePath, state);
 
       const message = error instanceof Error ? error.message : String(error);
-      upsertScrapedRow(rows, toFailedRow(venue, message));
+      upsertScrapedRow(rows, toFailedRow(venue, message, config.searchTerm));
       alreadyOutput.add(venue.url);
       await writeCsv(config.outputCsvPath, rows);
 
@@ -146,15 +143,31 @@ export function upsertScrapedRow(rows: ScrapedVenue[], row: ScrapedVenue): void 
   rows[index] = row;
 }
 
-async function scrapeVenue(page: Page, venue: Venue): Promise<ScrapedVenue> {
-  const overviewText = await getExtractionText(page);
+async function scrapeVenue(
+  page: Page,
+  venue: Venue,
+  venueType: string,
+): Promise<ScrapedVenue> {
+  let overviewText = await getExtractionText(page);
+  if (parseStarRating(overviewText) === null && parseReviewCount(overviewText) === null) {
+    await page.waitForTimeout(700);
+    overviewText = await getExtractionText(page);
+  }
+
   const overviewRating = parseStarRating(overviewText);
   const overviewReviewCount = parseReviewCount(overviewText);
 
-  await openReviewsTab(page);
-  await page.waitForTimeout(1_000);
+  const openedReviews = await openReviewsTab(page);
+  if (openedReviews) {
+    await waitForReviewsPanel(page);
+  }
 
-  const pageText = await getExtractionText(page);
+  let pageText = openedReviews ? await getExtractionText(page) : overviewText;
+  if (openedReviews && parseReviewCount(pageText) === null) {
+    await page.waitForTimeout(700);
+    pageText = await getExtractionText(page);
+  }
+
   const deleted = parseDeletedReviews(pageText);
   const totalReviews = parseReviewCount(pageText) ?? overviewReviewCount;
   const rating = overviewRating ?? parseStarRating(pageText);
@@ -169,6 +182,7 @@ async function scrapeVenue(page: Page, venue: Venue): Promise<ScrapedVenue> {
 
   return {
     ...venue,
+    venueType,
     totalReviews,
     deletedReviewsMin: deleted?.min ?? 0,
     deletedReviewsMax: deleted?.max ?? 0,
@@ -180,6 +194,32 @@ async function scrapeVenue(page: Page, venue: Venue): Promise<ScrapedVenue> {
     scrapedAt: new Date().toISOString(),
     status,
   };
+}
+
+async function waitForFirstSearchResult(page: Page): Promise<void> {
+  await page
+    .locator('a[href*="/maps/place"], a[href*="google."][href*="/maps/place"]')
+    .first()
+    .waitFor({ state: 'attached', timeout: 10_000 })
+    .catch(() => undefined);
+}
+
+async function waitForVenueShell(page: Page, venue: Venue): Promise<void> {
+  await page
+    .waitForFunction(
+      (name) => document.body.innerText.includes(name) && /[1-5],[0-9]|Rezension/.test(document.body.innerText),
+      venue.name,
+      { timeout: 1_300 },
+    )
+    .catch(() => undefined);
+}
+
+async function waitForReviewsPanel(page: Page): Promise<void> {
+  await page
+    .getByText(/Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt|Rezensionen|Sortieren/i)
+    .first()
+    .waitFor({ state: 'attached', timeout: 1_300 })
+    .catch(() => undefined);
 }
 
 async function getExtractionText(page: Page): Promise<string> {
@@ -233,26 +273,26 @@ async function extractVenueName(anchor: Locator): Promise<string | null> {
   return text.length > 0 ? text.split('\n')[0] ?? text : null;
 }
 
-async function openReviewsTab(page: Page): Promise<void> {
+async function openReviewsTab(page: Page): Promise<boolean> {
   const tab = page.getByRole('tab', { name: /Rezensionen|Bewertungen|Reviews/i }).first();
   if ((await tab.count()) > 0) {
     await tab.click();
-    return;
+    return true;
   }
 
   const button = page.getByRole('button', { name: /Rezensionen|Bewertungen|Reviews/i }).first();
   if ((await button.count()) > 0) {
     await button.click();
-    return;
+    return true;
   }
 
   const textFallback = page.getByText(/Rezensionen|Bewertungen|Reviews/i).first();
   if ((await textFallback.count()) > 0) {
     await textFallback.click();
-    return;
+    return true;
   }
 
-  throw new Error('Could not find the reviews tab');
+  return false;
 }
 
 async function scrollResultsPanel(page: Page): Promise<void> {
@@ -276,7 +316,7 @@ async function maybeAcceptConsent(page: Page): Promise<void> {
   for (const button of consentButtons) {
     if ((await button.count()) > 0 && (await button.isVisible().catch(() => false))) {
       await button.click();
-      await page.waitForTimeout(1_000);
+      await page.waitForTimeout(250);
       return;
     }
   }
@@ -329,6 +369,10 @@ async function promptManualResume(message: string): Promise<void> {
 }
 
 async function randomDelay(config: ScraperConfig): Promise<void> {
+  if (config.actionDelay.maxMs === 0) {
+    return;
+  }
+
   const spread = config.actionDelay.maxMs - config.actionDelay.minMs;
   const delay = config.actionDelay.minMs + Math.floor(Math.random() * (spread + 1));
   await new Promise((resolve) => setTimeout(resolve, delay));
@@ -338,23 +382,41 @@ async function loadExistingRows(outputCsvPath: string): Promise<ScrapedVenue[]> 
   try {
     const raw = await readFile(outputCsvPath, 'utf8');
     const [, ...lines] = raw.trim().split('\n');
+    const headers = raw.trim().split('\n')[0]?.split(',') ?? [];
+    const usesPercentValue = headers[0] === 'venue_type';
+
     return lines.filter(Boolean).map((line) => {
       const cells = parseCsvLine(line);
+      const cell = (header: string): string | undefined => {
+        const index = headers.indexOf(header);
+        return index >= 0 ? cells[index] : undefined;
+      };
+      const percentageDeleted = parseNullableNumber(cell('percentage_deleted') ?? cells[8]);
+
       return {
-        name: cells[0] ?? '',
-        address: cells[1] || undefined,
-        url: cells[2] ?? '',
-        totalReviews: parseNullableNumber(cells[3]),
-        deletedReviewsMin: Number(cells[4] ?? 0),
-        deletedReviewsMax: Number(cells[5] ?? 0),
-        deletedReviewsEstimate: Number(cells[6] ?? 0),
-        currentStarRating: parseNullableNumber(cells[7]),
-        percentageDeleted: parseNullableNumber(cells[8]),
-        realScoreIfDeletedAreOneStar: parseNullableNumber(cells[9]),
-        deletedReviewNotice: cells[10] || null,
-        status: (cells[11] as ScrapedVenue['status']) || 'partial',
-        error: cells[12] || undefined,
-        scrapedAt: cells[13] ?? new Date().toISOString(),
+        venueType: cell('venue_type') ?? '',
+        name: cell('name') ?? cells[0] ?? '',
+        address: cell('address') || cells[1] || undefined,
+        url: cell('url') ?? cells[2] ?? '',
+        totalReviews: parseNullableNumber(cell('total_reviews') ?? cells[3]),
+        deletedReviewsMin: Number(cell('deleted_reviews_min') ?? cells[4] ?? 0),
+        deletedReviewsMax: Number(cell('deleted_reviews_max') ?? cells[5] ?? 0),
+        deletedReviewsEstimate: Number(cell('deleted_reviews_estimate') ?? cells[6] ?? 0),
+        currentStarRating: parseNullableNumber(cell('current_star_rating') ?? cells[7]),
+        percentageDeleted:
+          percentageDeleted === null
+            ? null
+            : usesPercentValue
+              ? percentageDeleted / 100
+              : percentageDeleted,
+        realScoreIfDeletedAreOneStar: parseNullableNumber(
+          cell('real_score') ?? cell('real_score_if_deleted_are_1star') ?? cells[9],
+        ),
+        deletedReviewNotice:
+          (cell('review_notice') ?? cell('deleted_review_notice') ?? cells[10]) || null,
+        status: ((cell('status') ?? cells[11]) as ScrapedVenue['status']) || 'partial',
+        error: (cell('error') ?? cells[12]) || undefined,
+        scrapedAt: cell('scraped_at') ?? cells[13] ?? new Date().toISOString(),
       };
     });
   } catch (error) {
@@ -411,9 +473,10 @@ function isUtilityMapsLink(name: string): boolean {
   return /Route|Speichern|Teilen|Website|Anrufen|Directions|Save|Share|Call/i.test(name);
 }
 
-function toFailedRow(venue: Venue, error: string): ScrapedVenue {
+function toFailedRow(venue: Venue, error: string, venueType: string): ScrapedVenue {
   return {
     ...venue,
+    venueType,
     totalReviews: null,
     deletedReviewsMin: 0,
     deletedReviewsMax: 0,

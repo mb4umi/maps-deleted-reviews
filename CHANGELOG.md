@@ -13,3 +13,7 @@
 - Included accessibility labels in extraction text so Google Maps ratings can be parsed when not visible in body text.
 - Captured venue ratings before opening the reviews tab to avoid confusing review filter labels with venue ratings.
 - Lowered the default Playwright action and result-scroll waits to 1300ms.
+- Optimized live scraping for fast connections by removing fixed per-venue waits and using short condition-based waits.
+- Allowed venues without a separate reviews tab to be recorded from overview data instead of failing the run.
+- Added brief conditional re-reads when venue or reviews data is missing to reduce partial rows without slowing every venue.
+- Reordered CSV columns, added venue type, and output deletion percentages as percent values.

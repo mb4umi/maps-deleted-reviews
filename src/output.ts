@@ -3,17 +3,18 @@ import { dirname } from 'node:path';
 import type { ScrapedVenue } from './types.js';
 
 const CSV_HEADERS = [
+  'venue_type',
   'name',
-  'address',
-  'url',
   'total_reviews',
   'deleted_reviews_min',
   'deleted_reviews_max',
-  'deleted_reviews_estimate',
-  'current_star_rating',
   'percentage_deleted',
-  'real_score_if_deleted_are_1star',
-  'deleted_review_notice',
+  'current_star_rating',
+  'real_score',
+  'review_notice',
+  'url',
+  'address',
+  'deleted_reviews_estimate',
   'status',
   'error',
   'scraped_at',
@@ -25,17 +26,18 @@ export async function writeCsv(outputPath: string, rows: ScrapedVenue[]): Promis
     CSV_HEADERS.join(','),
     ...rows.map((row) =>
       [
+        row.venueType,
         row.name,
-        row.address ?? '',
-        row.url,
         row.totalReviews,
         row.deletedReviewsMin,
         row.deletedReviewsMax,
-        row.deletedReviewsEstimate,
+        formatPercent(row.percentageDeleted),
         row.currentStarRating,
-        row.percentageDeleted,
         row.realScoreIfDeletedAreOneStar,
         row.deletedReviewNotice ?? '',
+        row.url,
+        row.address ?? '',
+        row.deletedReviewsEstimate,
         row.status,
         row.error ?? '',
         row.scrapedAt,
@@ -59,4 +61,17 @@ function formatCsvCell(value: string | number | null): string {
   }
 
   return text;
+}
+
+function formatPercent(value: number | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  return roundTo(value * 100, 4);
+}
+
+function roundTo(value: number, decimals: number): number {
+  const multiplier = 10 ** decimals;
+  return Math.round(value * multiplier) / multiplier;
 }
