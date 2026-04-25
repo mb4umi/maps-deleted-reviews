@@ -61,6 +61,7 @@ export interface ScrapedVenue extends Venue {
 }
 
 export interface ScraperState {
+  runKey: string;
   discoveredVenues: Venue[];
   completedUrls: string[];
   failedUrls: string[];

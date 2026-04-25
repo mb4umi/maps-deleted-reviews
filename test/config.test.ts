@@ -19,7 +19,7 @@ describe('normalizeConfig', () => {
       resumeMode: 'pause',
       headed: true,
       outputCsvPath: 'output/deleted-reviews-bonn-restaurant.csv',
-      statePath: 'output/state.json',
+      statePath: 'output/state-bonn-restaurant.json',
     });
   });
 
@@ -36,14 +36,15 @@ describe('normalizeConfig', () => {
   });
 
   it('slugifies city and search term in the default output path', () => {
-    expect(
-      normalizeConfig({
-        city: 'München',
-        country: 'Germany',
-        searchTerm: 'Café & Bar',
-        depth: 25,
-      }).outputCsvPath,
-    ).toBe('output/deleted-reviews-munchen-cafe-bar.csv');
+    const config = normalizeConfig({
+      city: 'München',
+      country: 'Germany',
+      searchTerm: 'Café & Bar',
+      depth: 25,
+    });
+
+    expect(config.outputCsvPath).toBe('output/deleted-reviews-munchen-cafe-bar.csv');
+    expect(config.statePath).toBe('output/state-munchen-cafe-bar.json');
   });
 
   it('rejects invalid depth and resume mode values', () => {

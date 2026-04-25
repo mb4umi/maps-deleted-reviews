@@ -54,14 +54,27 @@ describe('state helpers', () => {
   it('loads an existing state file', async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'maps-state-'));
     const statePath = join(tempDir, 'state.json');
-    const first = await loadOrCreateState(statePath);
+    const first = await loadOrCreateState(statePath, 'bonn::restaurant');
     upsertDiscoveredVenue(first, { name: 'A', url: 'https://maps.example/a' });
     await saveState(statePath, first);
 
-    const second = await loadOrCreateState(statePath);
+    const second = await loadOrCreateState(statePath, 'bonn::restaurant');
 
     expect(second.discoveredVenues).toEqual([
       { name: 'A', url: 'https://maps.example/a' },
     ]);
+  });
+
+  it('starts fresh when the saved state belongs to another search', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'maps-state-'));
+    const statePath = join(tempDir, 'state.json');
+    const restaurantState = await loadOrCreateState(statePath, 'bonn::restaurant');
+    upsertDiscoveredVenue(restaurantState, { name: 'A', url: 'https://maps.example/a' });
+    await saveState(statePath, restaurantState);
+
+    const cafeState = await loadOrCreateState(statePath, 'bonn::cafe');
+
+    expect(cafeState.runKey).toBe('bonn::cafe');
+    expect(cafeState.discoveredVenues).toEqual([]);
   });
 });

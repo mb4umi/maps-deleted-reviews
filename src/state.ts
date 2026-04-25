@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { ScraperState, Venue } from './types.js';
 
-export function createInitialState(): ScraperState {
+export function createInitialState(runKey = ''): ScraperState {
   return {
+    runKey,
     discoveredVenues: [],
     completedUrls: [],
     failedUrls: [],
@@ -12,16 +13,23 @@ export function createInitialState(): ScraperState {
   };
 }
 
-export async function loadOrCreateState(statePath: string): Promise<ScraperState> {
+export async function loadOrCreateState(statePath: string, runKey = ''): Promise<ScraperState> {
   try {
     const raw = await readFile(statePath, 'utf8');
-    return normalizeState(JSON.parse(raw) as Partial<ScraperState>);
+    const state = normalizeState(JSON.parse(raw) as Partial<ScraperState>, runKey);
+    if (runKey && state.runKey !== runKey) {
+      const freshState = createInitialState(runKey);
+      await saveState(statePath, freshState);
+      return freshState;
+    }
+
+    return state;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw error;
     }
 
-    const state = createInitialState();
+    const state = createInitialState(runKey);
     await saveState(statePath, state);
     return state;
   }
@@ -62,8 +70,9 @@ export function markVenueFailed(state: ScraperState, url: string): void {
   }
 }
 
-function normalizeState(raw: Partial<ScraperState>): ScraperState {
+function normalizeState(raw: Partial<ScraperState>, runKey = ''): ScraperState {
   return {
+    runKey: raw.runKey ?? runKey,
     discoveredVenues: raw.discoveredVenues ?? [],
     completedUrls: raw.completedUrls ?? [],
     failedUrls: raw.failedUrls ?? [],

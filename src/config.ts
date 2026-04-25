@@ -3,13 +3,12 @@ import type { RawScraperConfig, ScraperConfig } from './types.js';
 
 const DEFAULT_CONFIG: Omit<
   ScraperConfig,
-  'city' | 'country' | 'searchTerm' | 'depth' | 'outputCsvPath'
+  'city' | 'country' | 'searchTerm' | 'depth' | 'outputCsvPath' | 'statePath'
 > = {
   locale: 'de-DE',
   googleMapsUrl: 'https://www.google.de/maps',
   headed: true,
   resumeMode: 'pause',
-  statePath: 'output/state.json',
   browserProfileDir: '.playwright-profile',
   navigationTimeoutMs: 45_000,
   actionDelay: {
@@ -63,6 +62,7 @@ export function normalizeConfig(raw: RawScraperConfig): ScraperConfig {
     ...merged,
     outputCsvPath:
       raw.outputCsvPath ?? `output/deleted-reviews-${slugify(merged.city)}-${slugify(merged.searchTerm)}.csv`,
+    statePath: raw.statePath ?? `output/state-${slugify(merged.city)}-${slugify(merged.searchTerm)}.json`,
   } as ScraperConfig;
 }
 

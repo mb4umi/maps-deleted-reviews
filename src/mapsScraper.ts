@@ -20,7 +20,7 @@ import {
 import type { ScrapedVenue, ScraperConfig, ScraperState, Venue } from './types.js';
 
 export async function runScraper(config: ScraperConfig): Promise<void> {
-  const state = await loadOrCreateState(config.statePath);
+  const state = await loadOrCreateState(config.statePath, getRunKey(config));
   const rows = await loadExistingRows(config.outputCsvPath);
   const context = await chromium.launchPersistentContext(config.browserProfileDir, {
     headless: !config.headed,
@@ -38,6 +38,12 @@ export async function runScraper(config: ScraperConfig): Promise<void> {
   } finally {
     await context.close();
   }
+}
+
+function getRunKey(config: ScraperConfig): string {
+  return [config.city, config.country, config.searchTerm]
+    .map((part) => part.trim().toLowerCase())
+    .join('::');
 }
 
 async function discoverVenues(

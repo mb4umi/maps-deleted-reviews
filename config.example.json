@@ -9,7 +9,7 @@
     "headed": "true opens a visible browser, which is recommended because Google may require manual interaction.",
     "resumeMode": "pause keeps the browser open for manual intervention; stop saves state and exits on blockers.",
     "outputCsvPath": "Optional. If omitted, the scraper writes output/deleted-reviews-city-searchterm.csv.",
-    "statePath": "Checkpoint file used to continue interrupted runs.",
+    "statePath": "Optional checkpoint override. If omitted, the scraper writes output/state-city-searchterm.json.",
     "browserProfileDir": "Persistent browser profile directory for cookies/session reuse.",
     "navigationTimeoutMs": "Timeout for page loads and Playwright actions.",
     "actionDelay": "Random delay range between actions to keep the run slow and observable.",
@@ -24,7 +24,6 @@
   "googleMapsUrl": "https://www.google.de/maps",
   "headed": true,
   "resumeMode": "pause",
-  "statePath": "output/state.json",
   "browserProfileDir": ".playwright-profile",
   "navigationTimeoutMs": 45000,
   "actionDelay": {

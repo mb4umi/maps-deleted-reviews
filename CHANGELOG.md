@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-04-25
+
+- Made scraper output and state files search-specific so changing the venue type starts the correct run.
+- Added stale-state detection using city, country, and search term.
+- Kept the fast scraping path while adding conditional waits to avoid partial rows.
+- Reordered CSV output and changed deleted percentage values to percent format.
+
 ## 0.1.0 - 2026-04-25
 
 - Added a config-driven Playwright CLI for scraping Google Maps deleted-review notices.
@@ -17,3 +24,4 @@
 - Allowed venues without a separate reviews tab to be recorded from overview data instead of failing the run.
 - Added brief conditional re-reads when venue or reviews data is missing to reduce partial rows without slowing every venue.
 - Reordered CSV columns, added venue type, and output deletion percentages as percent values.
+- Made default state files search-specific and reset stale state when city/country/search term changes.
