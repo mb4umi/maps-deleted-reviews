@@ -47,6 +47,7 @@ export async function runScraper(config: ScraperConfig): Promise<RunSummary> {
 
     await discoverVenues(page, config, state);
     await scrapeVenues(page, config, state, rows);
+    await refetchSuspectRows(page, config, state, rows);
   } finally {
     await context.close();
   }
@@ -191,6 +192,66 @@ async function scrapeVenues(
       );
     }
   }
+}
+
+async function refetchSuspectRows(
+  page: Page,
+  config: ScraperConfig,
+  state: ScraperState,
+  rows: ScrapedVenue[],
+): Promise<void> {
+  const suspectRows = rows.filter(shouldRefetchScrapedRow);
+  if (suspectRows.length === 0) {
+    return;
+  }
+
+  for (const row of suspectRows) {
+    const venue = state.discoveredVenues.find((candidate) => candidate.url === row.url) ?? row;
+
+    try {
+      await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
+      await maybeAcceptConsent(page);
+      const blocker = await detectBlocker(page);
+      if (blocker?.kind === 'rate-limit') {
+        await waitForRateLimitPage(page);
+        markVenueFailed(state, venue.url);
+        await saveState(config.statePath, state);
+        upsertScrapedRow(rows, toFailedRow(venue, blocker.message, config.searchTerm));
+        await writeCsv(config.outputCsvPath, rows);
+        continue;
+      }
+
+      await handleBlocker(page, config, state, blocker);
+      await waitForVenueShell(page, venue);
+
+      const scraped = await scrapeVenue(page, venue, config.searchTerm);
+      upsertScrapedRow(rows, scraped);
+      markVenueCompleted(state, venue.url);
+      await saveState(config.statePath, state);
+      await writeCsv(config.outputCsvPath, rows);
+    } catch (error) {
+      markVenueFailed(state, venue.url);
+      await saveState(config.statePath, state);
+
+      const message = error instanceof Error ? error.message : String(error);
+      upsertScrapedRow(rows, toFailedRow(venue, message, config.searchTerm));
+      await writeCsv(config.outputCsvPath, rows);
+
+      if (config.resumeMode === 'stop') {
+        throw new Error(
+          `Stopped after refetch failure at ${venue.name}. State saved to ${config.statePath}. Cause: ${message}`,
+        );
+      }
+
+      await promptManualResume(
+        `Could not refetch "${venue.name}". Resolve the issue in the browser if possible, then press Enter to continue.`,
+      );
+    }
+  }
+}
+
+export function shouldRefetchScrapedRow(row: ScrapedVenue): boolean {
+  return (row.currentStarRating !== null && row.currentStarRating > 5) || row.totalReviews === 0;
 }
 
 export function upsertScrapedRow(rows: ScrapedVenue[], row: ScrapedVenue): void {

@@ -34,3 +34,4 @@
 - Added batch mode via `searchTerms` or `--search-terms` to run multiple venue types sequentially.
 - Bumped package version to 0.3.0.
 - Added multi-city CLI batch mode via `--cities`, including city/search-term combinations with separate output, state, and summary files.
+- Re-fetch rows at the end of a run when the parsed star rating is above 5 or total reviews are 0.

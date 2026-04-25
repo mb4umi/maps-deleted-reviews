@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileStateWithRows, upsertScrapedRow } from '../src/mapsScraper.js';
+import { reconcileStateWithRows, shouldRefetchScrapedRow, upsertScrapedRow } from '../src/mapsScraper.js';
 import type { ScrapedVenue } from '../src/types.js';
 
 const baseRow: ScrapedVenue = {
@@ -34,6 +34,27 @@ describe('upsertScrapedRow', () => {
     expect(rows[0]?.status).toBe('ok');
     expect(rows[0]?.totalReviews).toBe(200);
     expect(rows[0]?.error).toBeUndefined();
+  });
+});
+
+describe('shouldRefetchScrapedRow', () => {
+  it('refetches rows with impossible star ratings', () => {
+    expect(shouldRefetchScrapedRow({ ...baseRow, currentStarRating: 5.1 })).toBe(true);
+  });
+
+  it('refetches rows with zero total reviews', () => {
+    expect(shouldRefetchScrapedRow({ ...baseRow, totalReviews: 0 })).toBe(true);
+  });
+
+  it('keeps plausible rows', () => {
+    expect(
+      shouldRefetchScrapedRow({
+        ...baseRow,
+        totalReviews: 120,
+        currentStarRating: 4.7,
+        status: 'ok',
+      }),
+    ).toBe(false);
   });
 });
 
