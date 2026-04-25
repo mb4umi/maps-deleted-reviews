@@ -1,9 +1,9 @@
 import type { DeletedReviews } from './types.js';
 
 const DELETED_REVIEW_RANGE =
-  /(\d[\d.\s]*)\s+bis\s+(\d[\d.\s]*)\s+Bewertung(?:en)?\s+aufgrund\s+von\s+Beschwerden\s+wegen\s+Diffamierung\s+entfernt\.?/i;
+  /([\d.\s]+|ein(?:e|en|er|es|s)?|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\s+bis\s+([\d.\s]+|ein(?:e|en|er|es|s)?|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\s+Bewertung(?:en)?\s+aufgrund\s+von\s+Beschwerden\s+wegen\s+Diffamierung\s+entfernt\.?/i;
 const DELETED_REVIEW_SINGLE =
-  /(\d[\d.\s]*)\s+Bewertung(?:en)?\s+aufgrund\s+von\s+Beschwerden\s+wegen\s+Diffamierung\s+entfernt\.?/i;
+  /([\d.\s]+|ein(?:e|en|er|es|s)?|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\s+Bewertung(?:en)?\s+aufgrund\s+von\s+Beschwerden\s+wegen\s+Diffamierung\s+entfernt\.?/i;
 const REVIEW_COUNT = /(\d[\d.\s]*)\s+Rezension(?:en)?/i;
 const STAR_RATING = /(\d(?:[,.]\d)?)\s+Sterne?/i;
 const COMPACT_STAR_RATING = /\b([1-5][,.]\d)\s+\(?\d[\d.\s]*\)?\s+Rezension(?:en)?/i;
@@ -12,8 +12,8 @@ export function parseDeletedReviews(text: string): DeletedReviews | null {
   const normalized = normalizeWhitespace(text);
   const rangeMatch = normalized.match(DELETED_REVIEW_RANGE);
   if (rangeMatch) {
-    const min = parseInteger(rangeMatch[1]);
-    const max = parseInteger(rangeMatch[2]);
+    const min = parseCount(rangeMatch[1]);
+    const max = parseCount(rangeMatch[2]);
 
     return {
       min,
@@ -28,7 +28,7 @@ export function parseDeletedReviews(text: string): DeletedReviews | null {
     return null;
   }
 
-  const count = parseInteger(singleMatch[1]);
+  const count = parseCount(singleMatch[1]);
   return {
     min: count,
     max: count,
@@ -94,6 +94,34 @@ function parseInteger(value: string | undefined): number {
   }
 
   return Number.parseInt(value.replace(/[.\s]/g, ''), 10);
+}
+
+function parseCount(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const normalized = value.toLowerCase().trim();
+  const numberWords: Record<string, number> = {
+    ein: 1,
+    eine: 1,
+    einen: 1,
+    einer: 1,
+    eines: 1,
+    eins: 1,
+    zwei: 2,
+    drei: 3,
+    vier: 4,
+    fünf: 5,
+    fuenf: 5,
+    sechs: 6,
+    sieben: 7,
+    acht: 8,
+    neun: 9,
+    zehn: 10,
+  };
+
+  return numberWords[normalized] ?? parseInteger(value);
 }
 
 function roundTo(value: number, decimals: number): number {

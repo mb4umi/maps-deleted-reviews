@@ -19,6 +19,18 @@ describe('parseDeletedReviews', () => {
     });
   });
 
+  it('parses deleted review ranges written as German number words', () => {
+    const text =
+      'Zwei bis fünf Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt.';
+
+    expect(parseDeletedReviews(text)).toEqual({
+      min: 2,
+      max: 5,
+      estimate: 3.5,
+      rawText: text,
+    });
+  });
+
   it('parses single deleted review counts when Maps does not show a range', () => {
     const text =
       '1 Bewertung aufgrund von Beschwerden wegen Diffamierung entfernt.';

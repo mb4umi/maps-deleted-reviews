@@ -28,3 +28,4 @@
 - Reconciled resume state with existing CSV rows so stale completed URLs are retried if output is missing.
 - Waited for rate-limit pages to finish loading before recording the venue and continuing.
 - Improved hotel-result discovery by scrolling the Maps feed directly and waiting for lazy-loaded place links.
+- Parsed German number-word deletion ranges such as "Zwei bis fünf Bewertungen".
