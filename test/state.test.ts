@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   createInitialState,
   loadOrCreateState,
+  markVenueFailed,
   markVenueCompleted,
   saveState,
   upsertDiscoveredVenue,
@@ -38,6 +39,16 @@ describe('state helpers', () => {
 
     expect(state.completedUrls).toContain('https://maps.example/a');
     expect(state.cursor).toBe(1);
+  });
+
+  it('removes a venue from failed urls after it later completes', () => {
+    const state = createInitialState();
+    upsertDiscoveredVenue(state, { name: 'A', url: 'https://maps.example/a' });
+    markVenueFailed(state, 'https://maps.example/a');
+
+    markVenueCompleted(state, 'https://maps.example/a');
+
+    expect(state.failedUrls).not.toContain('https://maps.example/a');
   });
 
   it('loads an existing state file', async () => {

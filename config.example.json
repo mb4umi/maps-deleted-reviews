@@ -28,9 +28,9 @@
   "browserProfileDir": ".playwright-profile",
   "navigationTimeoutMs": 45000,
   "actionDelay": {
-    "minMs": 800,
-    "maxMs": 1800
+    "minMs": 1300,
+    "maxMs": 1300
   },
-  "resultScrollDelayMs": 1500,
+  "resultScrollDelayMs": 1300,
   "maxResultScrolls": 80
 }

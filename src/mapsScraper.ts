@@ -107,10 +107,8 @@ async function scrapeVenues(
       await randomDelay(config);
 
       const scraped = await scrapeVenue(page, venue);
-      if (!alreadyOutput.has(scraped.url)) {
-        rows.push(scraped);
-        alreadyOutput.add(scraped.url);
-      }
+      upsertScrapedRow(rows, scraped);
+      alreadyOutput.add(scraped.url);
 
       markVenueCompleted(state, venue.url);
       await saveState(config.statePath, state);
@@ -121,11 +119,9 @@ async function scrapeVenues(
       await saveState(config.statePath, state);
 
       const message = error instanceof Error ? error.message : String(error);
-      if (!alreadyOutput.has(venue.url)) {
-        rows.push(toFailedRow(venue, message));
-        alreadyOutput.add(venue.url);
-        await writeCsv(config.outputCsvPath, rows);
-      }
+      upsertScrapedRow(rows, toFailedRow(venue, message));
+      alreadyOutput.add(venue.url);
+      await writeCsv(config.outputCsvPath, rows);
 
       if (config.resumeMode === 'stop') {
         throw new Error(
@@ -140,14 +136,28 @@ async function scrapeVenues(
   }
 }
 
+export function upsertScrapedRow(rows: ScrapedVenue[], row: ScrapedVenue): void {
+  const index = rows.findIndex((candidate) => candidate.url === row.url);
+  if (index === -1) {
+    rows.push(row);
+    return;
+  }
+
+  rows[index] = row;
+}
+
 async function scrapeVenue(page: Page, venue: Venue): Promise<ScrapedVenue> {
+  const overviewText = await getExtractionText(page);
+  const overviewRating = parseStarRating(overviewText);
+  const overviewReviewCount = parseReviewCount(overviewText);
+
   await openReviewsTab(page);
   await page.waitForTimeout(1_000);
 
-  const pageText = normalizeWhitespace(await page.locator('body').innerText());
+  const pageText = await getExtractionText(page);
   const deleted = parseDeletedReviews(pageText);
-  const totalReviews = parseReviewCount(pageText);
-  const rating = parseStarRating(pageText);
+  const totalReviews = parseReviewCount(pageText) ?? overviewReviewCount;
+  const rating = overviewRating ?? parseStarRating(pageText);
   const metrics = calculateMetrics({
     rating,
     visibleReviews: totalReviews,
@@ -170,6 +180,25 @@ async function scrapeVenue(page: Page, venue: Venue): Promise<ScrapedVenue> {
     scrapedAt: new Date().toISOString(),
     status,
   };
+}
+
+async function getExtractionText(page: Page): Promise<string> {
+  const bodyText = await page.locator('body').innerText();
+  const ariaLabels = await page.locator('[aria-label]').evaluateAll((elements) =>
+    elements
+      .map((element) => element.getAttribute('aria-label'))
+      .filter((label): label is string => Boolean(label)),
+  );
+
+  return combineExtractionText(bodyText, ariaLabels);
+}
+
+export function combineExtractionText(bodyText: string, ariaLabels: string[]): string {
+  const fragments = [bodyText, ...ariaLabels]
+    .map((fragment) => normalizeWhitespace(fragment))
+    .filter(Boolean);
+
+  return [...new Set(fragments)].join(' ');
 }
 
 async function extractVisibleSearchResults(page: Page): Promise<Venue[]> {
@@ -273,10 +302,17 @@ async function handleBlocker(
 
 async function detectBlocker(page: Page): Promise<string | null> {
   const text = normalizeWhitespace(await page.locator('body').innerText().catch(() => ''));
+  return detectBlockerText(text);
+}
+
+export function detectBlockerText(text: string): string | null {
   if (/ungewöhnlichen traffic|unusual traffic|captcha|ich bin kein roboter/i.test(text)) {
     return 'Google appears to be throttling or challenging the session';
   }
-  if (/Anmelden|Sign in/i.test(text) && /Google Maps/i.test(text) && /Weiter|Next/i.test(text)) {
+  if (
+    /accounts\.google\.com|myaccount\.google\.com/i.test(text) ||
+    (/Anmelden|Sign in/i.test(text) && /Passwort|password|E-Mail|email/i.test(text))
+  ) {
     return 'Google is asking for sign-in or manual account interaction';
   }
 

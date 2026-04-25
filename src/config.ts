@@ -13,10 +13,10 @@ const DEFAULT_CONFIG: Omit<
   browserProfileDir: '.playwright-profile',
   navigationTimeoutMs: 45_000,
   actionDelay: {
-    minMs: 800,
-    maxMs: 1_800,
+    minMs: 1_300,
+    maxMs: 1_300,
   },
-  resultScrollDelayMs: 1_500,
+  resultScrollDelayMs: 1_300,
   maxResultScrolls: 80,
 };
 

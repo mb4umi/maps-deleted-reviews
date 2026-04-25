@@ -46,6 +46,7 @@ export function markVenueCompleted(state: ScraperState, url: string): void {
   if (!state.completedUrls.includes(url)) {
     state.completedUrls.push(url);
   }
+  state.failedUrls = state.failedUrls.filter((failedUrl) => failedUrl !== url);
 
   while (
     state.cursor < state.discoveredVenues.length &&

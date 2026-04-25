@@ -51,6 +51,10 @@ describe('parseStarRating', () => {
     expect(parseStarRating('4,3 Sterne')).toBe(4.3);
   });
 
+  it('parses compact Google Maps rating text before review counts', () => {
+    expect(parseStarRating('Da Verdi 4,4 (212) Rezensionen')).toBe(4.4);
+  });
+
   it('ignores non-rating numbers', () => {
     expect(parseStarRating('Geöffnet bis 23:00')).toBeNull();
   });
