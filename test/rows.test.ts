@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { upsertScrapedRow } from '../src/mapsScraper.js';
+import { reconcileStateWithRows, upsertScrapedRow } from '../src/mapsScraper.js';
 import type { ScrapedVenue } from '../src/types.js';
 
 const baseRow: ScrapedVenue = {
@@ -34,5 +34,26 @@ describe('upsertScrapedRow', () => {
     expect(rows[0]?.status).toBe('ok');
     expect(rows[0]?.totalReviews).toBe(200);
     expect(rows[0]?.error).toBeUndefined();
+  });
+});
+
+describe('reconcileStateWithRows', () => {
+  it('removes completed urls that are missing from the CSV rows and rewinds cursor', () => {
+    const state = {
+      runKey: 'bonn::germany::hotel',
+      discoveredVenues: [
+        { name: 'A', url: 'https://maps.example/a' },
+        { name: 'B', url: 'https://maps.example/b' },
+      ],
+      completedUrls: ['https://maps.example/a', 'https://maps.example/b'],
+      failedUrls: [],
+      cursor: 2,
+      updatedAt: '2026-04-25T17:00:00.000Z',
+    };
+
+    reconcileStateWithRows(state, [{ ...baseRow, url: 'https://maps.example/a' }]);
+
+    expect(state.completedUrls).toEqual(['https://maps.example/a']);
+    expect(state.cursor).toBe(1);
   });
 });

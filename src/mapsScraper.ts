@@ -19,9 +19,20 @@ import {
 } from './state.js';
 import type { ScrapedVenue, ScraperConfig, ScraperState, Venue } from './types.js';
 
+type BlockerKind = 'rate-limit' | 'sign-in';
+
+interface Blocker {
+  kind: BlockerKind;
+  message: string;
+}
+
 export async function runScraper(config: ScraperConfig): Promise<void> {
   const state = await loadOrCreateState(config.statePath, getRunKey(config));
   const rows = await loadExistingRows(config.outputCsvPath);
+  if (reconcileStateWithRows(state, rows)) {
+    await saveState(config.statePath, state);
+  }
+
   const context = await chromium.launchPersistentContext(config.browserProfileDir, {
     headless: !config.headed,
     locale: config.locale,
@@ -85,8 +96,9 @@ async function discoverVenues(
       return;
     }
 
+    const visibleLinkCount = await getPlaceLinkCount(page);
     await scrollResultsPanel(page);
-    await page.waitForTimeout(config.resultScrollDelayMs);
+    await waitForResultListChange(page, visibleLinkCount, config.resultScrollDelayMs);
   }
 }
 
@@ -107,7 +119,17 @@ async function scrapeVenues(
     try {
       await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
       await maybeAcceptConsent(page);
-      await handleBlocker(page, config, state);
+      const blocker = await detectBlocker(page);
+      if (blocker?.kind === 'rate-limit') {
+        await waitForRateLimitPage(page);
+        markVenueFailed(state, venue.url);
+        await saveState(config.statePath, state);
+        upsertScrapedRow(rows, toFailedRow(venue, blocker.message, config.searchTerm));
+        alreadyOutput.add(venue.url);
+        await writeCsv(config.outputCsvPath, rows);
+        continue;
+      }
+      await handleBlocker(page, config, state, blocker);
       await waitForVenueShell(page, venue);
 
       const scraped = await scrapeVenue(page, venue, config.searchTerm);
@@ -147,6 +169,27 @@ export function upsertScrapedRow(rows: ScrapedVenue[], row: ScrapedVenue): void 
   }
 
   rows[index] = row;
+}
+
+export function reconcileStateWithRows(state: ScraperState, rows: ScrapedVenue[]): boolean {
+  const rowUrls = new Set(rows.map((row) => row.url));
+  const completedUrls = state.completedUrls.filter((url) => rowUrls.has(url));
+  const failedUrls = state.failedUrls.filter((url) => rowUrls.has(url));
+  const changed =
+    completedUrls.length !== state.completedUrls.length ||
+    failedUrls.length !== state.failedUrls.length;
+
+  state.completedUrls = completedUrls;
+  state.failedUrls = failedUrls;
+  state.cursor = 0;
+  while (
+    state.cursor < state.discoveredVenues.length &&
+    state.completedUrls.includes(state.discoveredVenues[state.cursor]?.url ?? '')
+  ) {
+    state.cursor += 1;
+  }
+
+  return changed;
 }
 
 async function scrapeVenue(
@@ -208,6 +251,25 @@ async function waitForFirstSearchResult(page: Page): Promise<void> {
     .first()
     .waitFor({ state: 'attached', timeout: 10_000 })
     .catch(() => undefined);
+}
+
+async function waitForResultListChange(
+  page: Page,
+  previousLinkCount: number,
+  minimumDelayMs: number,
+): Promise<void> {
+  const timeoutMs = Math.max(minimumDelayMs, 1_500);
+  await page
+    .waitForFunction(
+      (count) =>
+        document.querySelectorAll('a[href*="/maps/place"], a[href*="google."][href*="/maps/place"]').length >
+        count,
+      previousLinkCount,
+      { timeout: timeoutMs },
+    )
+    .catch(async () => {
+      await page.waitForTimeout(minimumDelayMs);
+    });
 }
 
 async function waitForVenueShell(page: Page, venue: Venue): Promise<void> {
@@ -305,12 +367,19 @@ async function scrollResultsPanel(page: Page): Promise<void> {
   const feed = page.getByRole('feed').first();
   if ((await feed.count()) > 0) {
     await feed.evaluate((element) => {
-      element.scrollBy({ top: element.scrollHeight, behavior: 'instant' });
+      element.scrollTop = element.scrollHeight;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
     });
     return;
   }
 
   await page.mouse.wheel(0, 2_500);
+}
+
+async function getPlaceLinkCount(page: Page): Promise<number> {
+  return page
+    .locator('a[href*="/maps/place"], a[href*="google."][href*="/maps/place"]')
+    .count();
 }
 
 async function maybeAcceptConsent(page: Page): Promise<void> {
@@ -332,23 +401,44 @@ async function handleBlocker(
   page: Page,
   config: ScraperConfig,
   state: ScraperState,
+  knownBlocker?: Blocker | null,
 ): Promise<void> {
-  const blocker = await detectBlocker(page);
+  const blocker = knownBlocker ?? (await detectBlocker(page));
   if (!blocker) {
     return;
   }
 
-  await saveState(config.statePath, state);
-  if (config.resumeMode === 'stop') {
-    throw new Error(`${blocker}. State saved to ${config.statePath}.`);
+  if (blocker.kind === 'rate-limit') {
+    await waitForRateLimitPage(page);
   }
 
-  await promptManualResume(`${blocker}. Resolve it in the browser, then press Enter to continue.`);
+  await saveState(config.statePath, state);
+  if (config.resumeMode === 'stop') {
+    throw new Error(`${blocker.message}. State saved to ${config.statePath}.`);
+  }
+
+  await promptManualResume(`${blocker.message}. Resolve it in the browser, then press Enter to continue.`);
 }
 
-async function detectBlocker(page: Page): Promise<string | null> {
+async function detectBlocker(page: Page): Promise<Blocker | null> {
   const text = normalizeWhitespace(await page.locator('body').innerText().catch(() => ''));
-  return detectBlockerText(text);
+  const kind = detectBlockerKind(text);
+  const message = detectBlockerText(text);
+  return kind && message ? { kind, message } : null;
+}
+
+export function detectBlockerKind(text: string): BlockerKind | null {
+  if (/ungewöhnlichen traffic|unusual traffic|captcha|ich bin kein roboter/i.test(text)) {
+    return 'rate-limit';
+  }
+  if (
+    /accounts\.google\.com|myaccount\.google\.com/i.test(text) ||
+    (/Anmelden|Sign in/i.test(text) && /Passwort|password|E-Mail|email/i.test(text))
+  ) {
+    return 'sign-in';
+  }
+
+  return null;
 }
 
 export function detectBlockerText(text: string): string | null {
@@ -363,6 +453,12 @@ export function detectBlockerText(text: string): string | null {
   }
 
   return null;
+}
+
+async function waitForRateLimitPage(page: Page): Promise<void> {
+  await page.waitForLoadState('load', { timeout: 5_000 }).catch(() => undefined);
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
+  await page.waitForTimeout(5_000);
 }
 
 async function promptManualResume(message: string): Promise<void> {

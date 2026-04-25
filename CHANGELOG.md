@@ -25,3 +25,6 @@
 - Added brief conditional re-reads when venue or reviews data is missing to reduce partial rows without slowing every venue.
 - Reordered CSV columns, added venue type, and output deletion percentages as percent values.
 - Made default state files search-specific and reset stale state when city/country/search term changes.
+- Reconciled resume state with existing CSV rows so stale completed URLs are retried if output is missing.
+- Waited for rate-limit pages to finish loading before recording the venue and continuing.
+- Improved hotel-result discovery by scrolling the Maps feed directly and waiting for lazy-loaded place links.
