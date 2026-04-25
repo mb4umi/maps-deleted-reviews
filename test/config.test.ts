@@ -77,6 +77,37 @@ describe('normalizeConfig', () => {
     ]);
   });
 
+  it('expands cities into multiple configs', () => {
+    const configs = normalizeConfigs({
+      cities: ['Bonn', 'Köln'],
+      country: 'Germany',
+      searchTerm: 'Hotel',
+      depth: 10,
+    });
+
+    expect(configs.map((config) => config.city)).toEqual(['Bonn', 'Köln']);
+    expect(configs.map((config) => config.outputCsvPath)).toEqual([
+      'output/deleted-reviews-bonn-hotel.csv',
+      'output/deleted-reviews-koln-hotel.csv',
+    ]);
+  });
+
+  it('expands cities and searchTerms into all combinations', () => {
+    const configs = normalizeConfigs({
+      cities: ['Bonn', 'Köln'],
+      country: 'Germany',
+      searchTerms: ['restaurant', 'Cafe'],
+      depth: 10,
+    });
+
+    expect(configs.map((config) => `${config.city}:${config.searchTerm}`)).toEqual([
+      'Bonn:restaurant',
+      'Bonn:Cafe',
+      'Köln:restaurant',
+      'Köln:Cafe',
+    ]);
+  });
+
   it('rejects shared output paths for batch configs', () => {
     expect(() =>
       normalizeConfigs({
@@ -86,7 +117,7 @@ describe('normalizeConfig', () => {
         depth: 10,
         outputCsvPath: 'output/shared.csv',
       }),
-    ).toThrow(/cannot be set when using searchTerms/);
+    ).toThrow(/cannot be set when using cities or searchTerms batches/);
   });
 
   it('lets a CLI searchTerm override a batch config', async () => {
@@ -106,6 +137,25 @@ describe('normalizeConfig', () => {
     const configs = await loadConfigs(configPath, { searchTerm: 'Hotel' });
 
     expect(configs.map((config) => config.searchTerm)).toEqual(['Hotel']);
+  });
+
+  it('lets a CLI city override a batch city config', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'maps-config-'));
+    const configPath = join(tempDir, 'config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        cities: ['Bonn', 'Köln'],
+        country: 'Germany',
+        searchTerm: 'Hotel',
+        depth: 10,
+      }),
+      'utf8',
+    );
+
+    const configs = await loadConfigs(configPath, { city: 'Düsseldorf' });
+
+    expect(configs.map((config) => config.city)).toEqual(['Düsseldorf']);
   });
 
   it('rejects invalid depth and resume mode values', () => {

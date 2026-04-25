@@ -23,6 +23,11 @@ export function parseCliArgs(args: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (arg === '--cities') {
+      overrides.cities = parseCommaSeparated(requireValue(arg, next));
+      index += 1;
+      continue;
+    }
     if (arg === '--country') {
       overrides.country = requireValue(arg, next);
       index += 1;
@@ -34,10 +39,7 @@ export function parseCliArgs(args: string[]): CliArgs {
       continue;
     }
     if (arg === '--searchTerms' || arg === '--search-terms') {
-      overrides.searchTerms = requireValue(arg, next)
-        .split(',')
-        .map((term) => term.trim())
-        .filter(Boolean);
+      overrides.searchTerms = parseCommaSeparated(requireValue(arg, next));
       index += 1;
       continue;
     }
@@ -80,6 +82,13 @@ export function parseCliArgs(args: string[]): CliArgs {
   }
 
   return { configPath, overrides };
+}
+
+function parseCommaSeparated(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function requireValue(flag: string, value: string | undefined): string {

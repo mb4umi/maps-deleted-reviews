@@ -47,6 +47,7 @@ Edit `config.json`. The example includes an `_annotations` object that explains 
 Common fields:
 
 - `city`: city to search, for example `Bonn`.
+- `cities`: optional batch mode array, for example `["Bonn", "Köln"]`.
 - `country`: country context, for example `Germany`.
 - `searchTerm`: venue type, for example `restaurant`, `Café`, `bar`, or `hotel`.
 - `searchTerms`: optional batch mode array, for example `["restaurant", "Cafe", "Hotel"]`.
@@ -80,6 +81,14 @@ Run multiple venue types sequentially:
 ```bash
 npm start -- --city Bonn --country Germany --search-terms restaurant,Cafe,Hotel --depth 50
 ```
+
+Run multiple cities sequentially:
+
+```bash
+npm start -- --cities Bonn,Köln,Düsseldorf --country Germany --search-term Hotel --depth 50
+```
+
+You can combine `--cities` and `--search-terms`; the scraper runs every city/search-term combination and writes separate CSV, state, and summary files for each.
 
 For a first smoke test, set `depth` to `3`.
 

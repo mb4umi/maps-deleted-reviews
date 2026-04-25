@@ -30,6 +30,9 @@ export async function loadConfigs(
 ): Promise<ScraperConfig[]> {
   const raw = await readFile(configPath, 'utf8');
   const merged = { ...(JSON.parse(raw) as RawScraperConfig), ...overrides };
+  if (overrides.city && !overrides.cities) {
+    merged.cities = undefined;
+  }
   if (overrides.searchTerm && !overrides.searchTerms) {
     merged.searchTerms = undefined;
   }
@@ -37,23 +40,30 @@ export async function loadConfigs(
 }
 
 export function normalizeConfigs(raw: RawScraperConfig): ScraperConfig[] {
-  const searchTerms = raw.searchTerms?.length ? raw.searchTerms : undefined;
-  if (!searchTerms) {
+  const cities = raw.cities?.length ? raw.cities : raw.city ? [raw.city] : undefined;
+  const searchTerms = raw.searchTerms?.length ? raw.searchTerms : raw.searchTerm ? [raw.searchTerm] : undefined;
+
+  if (!cities || !searchTerms) {
     return [normalizeConfig(raw)];
   }
 
-  if (raw.outputCsvPath || raw.statePath || raw.summaryPath) {
+  const batchSize = cities.length * searchTerms.length;
+  if (batchSize > 1 && (raw.outputCsvPath || raw.statePath || raw.summaryPath)) {
     throw new Error(
-      'Invalid config: outputCsvPath, statePath, and summaryPath cannot be set when using searchTerms',
+      'Invalid config: outputCsvPath, statePath, and summaryPath cannot be set when using cities or searchTerms batches',
     );
   }
 
-  return searchTerms.map((searchTerm) =>
-    normalizeConfig({
-      ...raw,
-      searchTerm,
-      searchTerms: undefined,
-    }),
+  return cities.flatMap((city) =>
+    searchTerms.map((searchTerm) =>
+      normalizeConfig({
+        ...raw,
+        city,
+        cities: undefined,
+        searchTerm,
+        searchTerms: undefined,
+      }),
+    ),
   );
 }
 

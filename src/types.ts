@@ -27,6 +27,7 @@ export interface ScraperConfig {
 export interface RawScraperConfig
   extends Partial<Omit<ScraperConfig, 'depth' | 'resumeMode'>> {
   city?: string;
+  cities?: string[];
   country?: string;
   searchTerm?: string;
   searchTerms?: string[];

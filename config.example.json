@@ -1,6 +1,7 @@
 {
   "_annotations": {
     "city": "City name used in the Google Maps query and the default CSV filename.",
+    "cities": "Optional batch mode. Use an array such as [\"Bonn\", \"Köln\"] instead of city.",
     "country": "Country context for the Maps query. Use the English or local country name that gives best Maps results.",
     "searchTerm": "Venue category to search, for example restaurant, Café, bar, hotel, bakery, or museum.",
     "searchTerms": "Optional batch mode. Use an array such as [\"restaurant\", \"Cafe\", \"Hotel\"] instead of searchTerm.",

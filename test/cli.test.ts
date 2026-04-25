@@ -37,6 +37,14 @@ describe('parseCliArgs', () => {
     ]);
   });
 
+  it('parses comma-separated batch cities', () => {
+    expect(parseCliArgs(['--cities', 'Bonn, Köln,Düsseldorf']).overrides.cities).toEqual([
+      'Bonn',
+      'Köln',
+      'Düsseldorf',
+    ]);
+  });
+
   it('throws on missing flag values', () => {
     expect(() => parseCliArgs(['--city'])).toThrow(/Missing value/);
   });

@@ -1,6 +1,6 @@
 {
   "name": "maps-deleted-reviews",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Config-driven Playwright scraper for Google Maps deleted-review notices.",
   "type": "module",
   "main": "dist/index.js",
