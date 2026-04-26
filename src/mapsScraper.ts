@@ -11,6 +11,7 @@ import {
   parseStarRating,
 } from './parsers.js';
 import {
+  createInitialState,
   loadOrCreateState,
   markVenueCompleted,
   markVenueFailed,
@@ -28,9 +29,15 @@ interface Blocker {
 
 export async function runScraper(config: ScraperConfig): Promise<RunSummary> {
   const startedAt = new Date();
-  const state = await loadOrCreateState(config.statePath, getRunKey(config));
-  const rows = await loadExistingRows(config.outputCsvPath);
+  const runKey = getRunKey(config);
+  let state = await loadOrCreateState(config.statePath, runKey);
+  let rows = await loadExistingRows(config.outputCsvPath);
   if (reconcileStateWithRows(state, rows)) {
+    await saveState(config.statePath, state);
+  }
+  if (shouldStartFreshRun(state, rows, config.depth)) {
+    state = createInitialState(runKey);
+    rows = [];
     await saveState(config.statePath, state);
   }
 
@@ -252,6 +259,24 @@ async function refetchSuspectRows(
 
 export function shouldRefetchScrapedRow(row: ScrapedVenue): boolean {
   return (row.currentStarRating !== null && row.currentStarRating > 5) || row.totalReviews === 0;
+}
+
+export function shouldStartFreshRun(
+  state: ScraperState,
+  rows: ScrapedVenue[],
+  depth: number,
+): boolean {
+  if (state.discoveredVenues.length < depth) {
+    return false;
+  }
+
+  const completedUrls = new Set(state.completedUrls);
+  const rowUrls = new Set(rows.map((row) => row.url));
+  const requestedVenues = state.discoveredVenues.slice(0, depth);
+
+  return requestedVenues.every(
+    (venue) => completedUrls.has(venue.url) && rowUrls.has(venue.url),
+  );
 }
 
 export function upsertScrapedRow(rows: ScrapedVenue[], row: ScrapedVenue): void {
