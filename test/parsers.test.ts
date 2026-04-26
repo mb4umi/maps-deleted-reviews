@@ -56,6 +56,18 @@ describe('parseReviewCount', () => {
   it('parses singular German review count text', () => {
     expect(parseReviewCount('1 Rezension')).toBe(1);
   });
+
+  it('prefers compact venue totals over reviewer contribution counts', () => {
+    expect(
+      parseReviewCount(
+        'Rüyam Gemüse Kebab 2 4,9 (42.291) Kebabimbiss Local Guide · 56 Rezensionen · 12 Fotos',
+      ),
+    ).toBe(42291);
+  });
+
+  it('ignores Local Guide contribution counts', () => {
+    expect(parseReviewCount('Local Guide · 56 Rezensionen · 12 Fotos')).toBeNull();
+  });
 });
 
 describe('parseStarRating', () => {

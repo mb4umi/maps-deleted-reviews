@@ -5,6 +5,9 @@ const DELETED_REVIEW_RANGE =
 const DELETED_REVIEW_SINGLE =
   /([\d.\s]+|ein(?:e|en|er|es|s)?|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\s+Bewertung(?:en)?\s+aufgrund\s+von\s+Beschwerden\s+wegen\s+Diffamierung\s+entfernt\.?/i;
 const REVIEW_COUNT = /(\d[\d.\s]*)\s+Rezension(?:en)?/i;
+const REVIEW_COUNT_GLOBAL = /(\d[\d.\s]*)\s+Rezension(?:en)?/gi;
+const COMPACT_REVIEW_COUNT =
+  /(?:^|[^\d.])[1-5][,.]\d(?![\d.])\s*\(?\s*(\d[\d.\s]*)\s*\)?\s*(?:Rezension(?:en)?)?/i;
 const STAR_RATING = /(\d(?:[,.]\d)?)\s+Sterne?/i;
 const COMPACT_STAR_RATING = /\b([1-5][,.]\d)\s+\(?\d[\d.\s]*\)?\s+Rezension(?:en)?/i;
 
@@ -38,8 +41,19 @@ export function parseDeletedReviews(text: string): DeletedReviews | null {
 }
 
 export function parseReviewCount(text: string): number | null {
-  const match = normalizeWhitespace(text).match(REVIEW_COUNT);
-  return match ? parseInteger(match[1]) : null;
+  const normalized = normalizeWhitespace(text);
+  const compactMatch = normalized.match(COMPACT_REVIEW_COUNT);
+  if (compactMatch) {
+    return parseInteger(compactMatch[1]);
+  }
+
+  for (const match of normalized.matchAll(REVIEW_COUNT_GLOBAL)) {
+    if (!isContributorReviewCount(normalized, match.index ?? 0)) {
+      return parseInteger(match[1]);
+    }
+  }
+
+  return null;
 }
 
 export function parseStarRating(text: string): number | null {
@@ -94,6 +108,11 @@ function parseInteger(value: string | undefined): number {
   }
 
   return Number.parseInt(value.replace(/[.\s]/g, ''), 10);
+}
+
+function isContributorReviewCount(text: string, matchIndex: number): boolean {
+  const context = text.slice(Math.max(0, matchIndex - 80), matchIndex + 80);
+  return /Local Guide|Rezension(?:en)?\s*·\s*\d|\d[\d.\s]*\s+Foto(?:s)?/i.test(context);
 }
 
 function parseCount(value: string | undefined): number {
