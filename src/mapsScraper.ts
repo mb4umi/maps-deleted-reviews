@@ -258,7 +258,13 @@ async function refetchSuspectRows(
 }
 
 export function shouldRefetchScrapedRow(row: ScrapedVenue): boolean {
-  return (row.currentStarRating !== null && row.currentStarRating > 5) || row.totalReviews === 0;
+  return (
+    row.status === 'failed' ||
+    row.status === 'partial' ||
+    row.totalReviews === null ||
+    (row.currentStarRating !== null && row.currentStarRating > 5) ||
+    row.totalReviews === 0
+  );
 }
 
 export function shouldStartFreshRun(
@@ -404,7 +410,7 @@ async function waitForReviewsPanel(page: Page): Promise<void> {
   await page
     .getByText(/Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt|Rezensionen|Sortieren/i)
     .first()
-    .waitFor({ state: 'attached', timeout: 1_300 })
+    .waitFor({ state: 'attached', timeout: 2_500 })
     .catch(() => undefined);
 }
 
@@ -460,25 +466,38 @@ async function extractVenueName(anchor: Locator): Promise<string | null> {
 }
 
 async function openReviewsTab(page: Page): Promise<boolean> {
-  const tab = page.getByRole('tab', { name: /Rezensionen|Bewertungen|Reviews/i }).first();
-  if ((await tab.count()) > 0) {
-    await tab.click();
-    return true;
-  }
+  const candidates = [
+    page.getByRole('tab', { name: /Rezensionen|Bewertungen|Reviews/i }).first(),
+    page.getByRole('button', { name: /^Rezensionen$|^Bewertungen$|^Reviews$/i }).first(),
+    page.locator('[aria-label*="Rezensionen"], [aria-label*="Bewertungen"], [aria-label*="Reviews"]').first(),
+    page.getByText(/^Rezensionen$|^Bewertungen$|^Reviews$/i).first(),
+  ];
 
-  const button = page.getByRole('button', { name: /Rezensionen|Bewertungen|Reviews/i }).first();
-  if ((await button.count()) > 0) {
-    await button.click();
-    return true;
-  }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const candidate of candidates) {
+      if ((await candidate.count()) === 0 || !(await candidate.isVisible().catch(() => false))) {
+        continue;
+      }
 
-  const textFallback = page.getByText(/Rezensionen|Bewertungen|Reviews/i).first();
-  if ((await textFallback.count()) > 0) {
-    await textFallback.click();
-    return true;
+      await candidate.click().catch(() => undefined);
+      await waitForReviewsPanel(page);
+      if (await hasReviewsPanel(page)) {
+        return true;
+      }
+    }
+
+    await page.waitForTimeout(700);
   }
 
   return false;
+}
+
+async function hasReviewsPanel(page: Page): Promise<boolean> {
+  return page
+    .getByText(/Bewertungen aufgrund von Beschwerden wegen Diffamierung entfernt|Sortieren|Neueste|Relevanteste/i)
+    .first()
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
 }
 
 async function scrollResultsPanel(page: Page): Promise<void> {

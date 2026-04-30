@@ -46,6 +46,21 @@ describe('shouldRefetchScrapedRow', () => {
     expect(shouldRefetchScrapedRow({ ...baseRow, totalReviews: 0 })).toBe(true);
   });
 
+  it('refetches partial rows with missing review data', () => {
+    expect(
+      shouldRefetchScrapedRow({
+        ...baseRow,
+        totalReviews: null,
+        currentStarRating: 4.7,
+        status: 'partial',
+      }),
+    ).toBe(true);
+  });
+
+  it('refetches failed rows after transient blockers', () => {
+    expect(shouldRefetchScrapedRow(baseRow)).toBe(true);
+  });
+
   it('keeps plausible rows', () => {
     expect(
       shouldRefetchScrapedRow({

@@ -37,3 +37,4 @@
 - Re-fetch rows at the end of a run when the parsed star rating is above 5 or total reviews are 0.
 - Hardened review-count parsing so venue totals such as `4,9 (42.291)` are preferred over reviewer contribution counts like `Local Guide · 56 Rezensionen`.
 - Restart completed reruns from Google Maps search discovery instead of restoring the last open venue from the persistent browser profile.
+- Retry failed and partial rows at the end of a run and make Reviews-tab opening more patient after transient Google throttling.
