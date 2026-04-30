@@ -17,11 +17,13 @@ export interface ScraperConfig {
   outputCsvPath: string;
   summaryPath: string;
   statePath: string;
+  mergeCsvPath?: string;
   browserProfileDir: string;
   navigationTimeoutMs: number;
   actionDelay: DelayConfig;
   resultScrollDelayMs: number;
   maxResultScrolls: number;
+  sortCsv: boolean;
 }
 
 export interface RawScraperConfig

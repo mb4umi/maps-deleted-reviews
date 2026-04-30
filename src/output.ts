@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { sortScrapedRows } from './csvSort.js';
 import type { ScrapedVenue } from './types.js';
 
 const CSV_HEADERS = [
@@ -20,11 +21,16 @@ const CSV_HEADERS = [
   'scraped_at',
 ];
 
-export async function writeCsv(outputPath: string, rows: ScrapedVenue[]): Promise<void> {
+export async function writeCsv(
+  outputPath: string,
+  rows: ScrapedVenue[],
+  sortCsv = true,
+): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
+  const outputRows = sortCsv ? sortScrapedRows(rows) : rows;
   const lines = [
     CSV_HEADERS.join(','),
-    ...rows.map((row) =>
+    ...outputRows.map((row) =>
       [
         row.venueType,
         row.name,

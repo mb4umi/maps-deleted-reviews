@@ -16,6 +16,7 @@ describe('parseCliArgs', () => {
         '--depth',
         '100',
         '--headless',
+        '--no-sort-csv',
       ]),
     ).toEqual({
       configPath: 'custom.json',
@@ -25,8 +26,23 @@ describe('parseCliArgs', () => {
         searchTerm: 'Hotel',
         depth: 100,
         headed: false,
+        sortCsv: false,
       },
     });
+  });
+
+  it('parses the CSV sorting flag', () => {
+    expect(parseCliArgs(['--sort-csv']).overrides.sortCsv).toBe(true);
+    expect(parseCliArgs(['--no-sort-csv']).overrides.sortCsv).toBe(false);
+  });
+
+  it('parses the merged CSV output path', () => {
+    expect(parseCliArgs(['--merge-csv-path', 'output/merged.csv']).overrides.mergeCsvPath).toBe(
+      'output/merged.csv',
+    );
+    expect(parseCliArgs(['--merged-output-csv', 'output/all.csv']).overrides.mergeCsvPath).toBe(
+      'output/all.csv',
+    );
   });
 
   it('parses comma-separated batch search terms', () => {

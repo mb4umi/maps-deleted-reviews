@@ -31,6 +31,7 @@ describe('normalizeConfig', () => {
       locale: 'de-DE',
       resumeMode: 'pause',
       headed: true,
+      sortCsv: true,
       outputCsvPath: 'output/deleted-reviews-bonn-restaurant.csv',
       summaryPath: 'output/summary-bonn-restaurant.json',
       statePath: 'output/state-bonn-restaurant.json',
@@ -47,6 +48,33 @@ describe('normalizeConfig', () => {
         outputCsvPath: 'output/custom.csv',
       }).outputCsvPath,
     ).toBe('output/custom.csv');
+  });
+
+  it('allows disabling automatic CSV sorting', () => {
+    expect(
+      normalizeConfig({
+        city: 'Bonn',
+        country: 'Germany',
+        searchTerm: 'restaurant',
+        depth: 25,
+        sortCsv: false,
+      }).sortCsv,
+    ).toBe(false);
+  });
+
+  it('preserves a merged CSV path for batch runs', () => {
+    const configs = normalizeConfigs({
+      city: 'Bonn',
+      country: 'Germany',
+      searchTerms: ['restaurant', 'Cafe'],
+      depth: 10,
+      mergeCsvPath: 'output/merged.csv',
+    });
+
+    expect(configs.map((config) => config.mergeCsvPath)).toEqual([
+      'output/merged.csv',
+      'output/merged.csv',
+    ]);
   });
 
   it('slugifies city and search term in the default output path', () => {

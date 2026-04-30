@@ -38,3 +38,6 @@
 - Hardened review-count parsing so venue totals such as `4,9 (42.291)` are preferred over reviewer contribution counts like `Local Guide · 56 Rezensionen`.
 - Restart completed reruns from Google Maps search discovery instead of restoring the last open venue from the persistent browser profile.
 - Retry failed and partial rows at the end of a run and make Reviews-tab opening more patient after transient Google throttling.
+- Wait 60 seconds for manual Google captcha resolution before retrying rate-limited venues and print live venue discovery/scrape progress.
+- Sort generated CSV rows by percentage deleted, name, and deleted review maximum, with a `sort-csv` script for legacy files.
+- Add `merge-csv` and `--merge-csv-path` to combine generated CSV files while deduplicating venues by name.

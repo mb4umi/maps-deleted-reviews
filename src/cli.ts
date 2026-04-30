@@ -68,6 +68,23 @@ export function parseCliArgs(args: string[]): CliArgs {
       index += 1;
       continue;
     }
+    if (
+      arg === '--mergeCsvPath' ||
+      arg === '--merge-csv-path' ||
+      arg === '--merged-output-csv'
+    ) {
+      overrides.mergeCsvPath = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === '--sortCsv' || arg === '--sort-csv') {
+      overrides.sortCsv = true;
+      continue;
+    }
+    if (arg === '--no-sortCsv' || arg === '--no-sort-csv') {
+      overrides.sortCsv = false;
+      continue;
+    }
     if (arg === '--headed') {
       overrides.headed = true;
       continue;

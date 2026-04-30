@@ -46,4 +46,33 @@ describe('writeCsv', () => {
       ].join('\n'),
     );
   });
+
+  it('sorts rows by percentage deleted, name, and deleted review maximum by default', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'maps-csv-'));
+    const outputPath = join(tempDir, 'results.csv');
+    const row = {
+      venueType: 'restaurant',
+      name: 'Beta',
+      url: 'https://maps.example/b',
+      totalReviews: 100,
+      deletedReviewsMin: 1,
+      deletedReviewsMax: 10,
+      deletedReviewsEstimate: 5.5,
+      currentStarRating: 4.5,
+      percentageDeleted: 0.1,
+      realScoreIfDeletedAreOneStar: 4.3,
+      deletedReviewNotice: null,
+      scrapedAt: '2026-04-25T17:30:00.000Z',
+      status: 'ok' as const,
+    };
+
+    await writeCsv(outputPath, [
+      { ...row, name: 'Charlie', percentageDeleted: 0.05, deletedReviewsMax: 100 },
+      { ...row, name: 'Beta', percentageDeleted: 0.1, deletedReviewsMax: 10 },
+      { ...row, name: 'Alpha', percentageDeleted: 0.1, deletedReviewsMax: 20 },
+    ]);
+
+    const [, ...lines] = (await readFile(outputPath, 'utf8')).trim().split('\n');
+    expect(lines.map((line) => line.split(',')[1])).toEqual(['Alpha', 'Beta', 'Charlie']);
+  });
 });

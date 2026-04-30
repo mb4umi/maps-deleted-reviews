@@ -3,6 +3,7 @@
 import { copyFile, access } from 'node:fs/promises';
 import { parseCliArgs } from './cli.js';
 import { loadConfigs } from './config.js';
+import { mergeCsvFiles } from './csvSort.js';
 import { runScraper } from './mapsScraper.js';
 import { formatRunSummary, writeRunSummary } from './summary.js';
 
@@ -23,6 +24,16 @@ async function main(): Promise<void> {
     await writeRunSummary(summary);
     console.log(formatRunSummary(summary));
   }
+
+  const mergeCsvPath = configs.find((config) => config.mergeCsvPath)?.mergeCsvPath;
+  if (mergeCsvPath) {
+    await mergeCsvFiles(
+      mergeCsvPath,
+      configs.map((config) => config.outputCsvPath),
+    );
+    console.log(`Merged CSV: ${mergeCsvPath}`);
+  }
+
   console.log('Done.');
 }
 

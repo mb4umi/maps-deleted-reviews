@@ -12,7 +12,9 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "dev": "tsx src/index.ts --config config.example.json"
+    "dev": "tsx src/index.ts --config config.example.json",
+    "sort-csv": "tsx src/csvSort.ts",
+    "merge-csv": "tsx src/csvMerge.ts"
   },
   "keywords": [
     "google-maps",

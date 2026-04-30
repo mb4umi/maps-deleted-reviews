@@ -17,6 +17,7 @@ const DEFAULT_CONFIG: Omit<
   },
   resultScrollDelayMs: 250,
   maxResultScrolls: 80,
+  sortCsv: true,
 };
 
 export async function loadConfig(configPath: string): Promise<ScraperConfig> {

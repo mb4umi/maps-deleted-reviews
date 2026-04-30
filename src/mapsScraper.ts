@@ -10,6 +10,7 @@ import {
   parseReviewCount,
   parseStarRating,
 } from './parsers.js';
+import { formatVenueProgress, formatVenuesDetected } from './progress.js';
 import {
   createInitialState,
   loadOrCreateState,
@@ -21,6 +22,8 @@ import {
 import type { RunSummary, ScrapedVenue, ScraperConfig, ScraperState, Venue } from './types.js';
 
 type BlockerKind = 'rate-limit' | 'sign-in';
+
+const RATE_LIMIT_USER_WAIT_MS = 60_000;
 
 interface Blocker {
   kind: BlockerKind;
@@ -127,6 +130,9 @@ async function discoverVenues(
     }
 
     await saveState(config.statePath, state);
+    if (state.discoveredVenues.length !== before) {
+      console.log(formatVenuesDetected(state.discoveredVenues.length));
+    }
     if (state.discoveredVenues.length >= config.depth) {
       return;
     }
@@ -157,28 +163,18 @@ async function scrapeVenues(
     }
 
     try {
-      await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
-      await maybeAcceptConsent(page);
-      const blocker = await detectBlocker(page);
-      if (blocker?.kind === 'rate-limit') {
-        await waitForRateLimitPage(page);
-        markVenueFailed(state, venue.url);
-        await saveState(config.statePath, state);
-        upsertScrapedRow(rows, toFailedRow(venue, blocker.message, config.searchTerm));
-        alreadyOutput.add(venue.url);
-        await writeCsv(config.outputCsvPath, rows);
-        continue;
-      }
-      await handleBlocker(page, config, state, blocker);
-      await waitForVenueShell(page, venue);
-
-      const scraped = await scrapeVenue(page, venue, config.searchTerm);
+      const scraped = await scrapeVenueWithRateLimitRetry(page, config, state, venue);
       upsertScrapedRow(rows, scraped);
       alreadyOutput.add(scraped.url);
+      console.log(formatVenueProgress(scraped));
 
-      markVenueCompleted(state, venue.url);
+      if (scraped.status === 'failed') {
+        markVenueFailed(state, venue.url);
+      } else {
+        markVenueCompleted(state, venue.url);
+      }
       await saveState(config.statePath, state);
-      await writeCsv(config.outputCsvPath, rows);
+      await writeCsv(config.outputCsvPath, rows, config.sortCsv);
     } catch (error) {
       markVenueFailed(state, venue.url);
       await saveState(config.statePath, state);
@@ -186,7 +182,7 @@ async function scrapeVenues(
       const message = error instanceof Error ? error.message : String(error);
       upsertScrapedRow(rows, toFailedRow(venue, message, config.searchTerm));
       alreadyOutput.add(venue.url);
-      await writeCsv(config.outputCsvPath, rows);
+      await writeCsv(config.outputCsvPath, rows, config.sortCsv);
 
       if (config.resumeMode === 'stop') {
         throw new Error(
@@ -216,33 +212,23 @@ async function refetchSuspectRows(
     const venue = state.discoveredVenues.find((candidate) => candidate.url === row.url) ?? row;
 
     try {
-      await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
-      await maybeAcceptConsent(page);
-      const blocker = await detectBlocker(page);
-      if (blocker?.kind === 'rate-limit') {
-        await waitForRateLimitPage(page);
-        markVenueFailed(state, venue.url);
-        await saveState(config.statePath, state);
-        upsertScrapedRow(rows, toFailedRow(venue, blocker.message, config.searchTerm));
-        await writeCsv(config.outputCsvPath, rows);
-        continue;
-      }
-
-      await handleBlocker(page, config, state, blocker);
-      await waitForVenueShell(page, venue);
-
-      const scraped = await scrapeVenue(page, venue, config.searchTerm);
+      const scraped = await scrapeVenueWithRateLimitRetry(page, config, state, venue);
       upsertScrapedRow(rows, scraped);
-      markVenueCompleted(state, venue.url);
+      console.log(formatVenueProgress(scraped));
+      if (scraped.status === 'failed') {
+        markVenueFailed(state, venue.url);
+      } else {
+        markVenueCompleted(state, venue.url);
+      }
       await saveState(config.statePath, state);
-      await writeCsv(config.outputCsvPath, rows);
+      await writeCsv(config.outputCsvPath, rows, config.sortCsv);
     } catch (error) {
       markVenueFailed(state, venue.url);
       await saveState(config.statePath, state);
 
       const message = error instanceof Error ? error.message : String(error);
       upsertScrapedRow(rows, toFailedRow(venue, message, config.searchTerm));
-      await writeCsv(config.outputCsvPath, rows);
+      await writeCsv(config.outputCsvPath, rows, config.sortCsv);
 
       if (config.resumeMode === 'stop') {
         throw new Error(
@@ -255,6 +241,33 @@ async function refetchSuspectRows(
       );
     }
   }
+}
+
+async function scrapeVenueWithRateLimitRetry(
+  page: Page,
+  config: ScraperConfig,
+  state: ScraperState,
+  venue: Venue,
+): Promise<ScrapedVenue> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto(venue.url, { waitUntil: 'domcontentloaded' });
+    await maybeAcceptConsent(page);
+    const blocker = await detectBlocker(page);
+    if (blocker?.kind === 'rate-limit') {
+      await waitForRateLimitPage(page);
+      if (attempt === 0) {
+        continue;
+      }
+
+      return toFailedRow(venue, blocker.message, config.searchTerm);
+    }
+
+    await handleBlocker(page, config, state, blocker);
+    await waitForVenueShell(page, venue);
+    return scrapeVenue(page, venue, config.searchTerm);
+  }
+
+  return toFailedRow(venue, 'Google rate-limit challenge persisted after retry', config.searchTerm);
 }
 
 export function shouldRefetchScrapedRow(row: ScrapedVenue): boolean {
@@ -547,6 +560,9 @@ async function handleBlocker(
 
   if (blocker.kind === 'rate-limit') {
     await waitForRateLimitPage(page);
+    if (!(await detectBlocker(page))) {
+      return;
+    }
   }
 
   await saveState(config.statePath, state);
@@ -565,7 +581,11 @@ async function detectBlocker(page: Page): Promise<Blocker | null> {
 }
 
 export function detectBlockerKind(text: string): BlockerKind | null {
-  if (/ungewöhnlichen traffic|unusual traffic|captcha|ich bin kein roboter/i.test(text)) {
+  if (
+    /ungewöhnlichen traffic|ungewöhnliche aktivität|unusual traffic|unusual activity|captcha|ich bin kein roboter/i.test(
+      text,
+    )
+  ) {
     return 'rate-limit';
   }
   if (
@@ -579,7 +599,11 @@ export function detectBlockerKind(text: string): BlockerKind | null {
 }
 
 export function detectBlockerText(text: string): string | null {
-  if (/ungewöhnlichen traffic|unusual traffic|captcha|ich bin kein roboter/i.test(text)) {
+  if (
+    /ungewöhnlichen traffic|ungewöhnliche aktivität|unusual traffic|unusual activity|captcha|ich bin kein roboter/i.test(
+      text,
+    )
+  ) {
     return 'Google appears to be throttling or challenging the session';
   }
   if (
@@ -595,7 +619,8 @@ export function detectBlockerText(text: string): string | null {
 async function waitForRateLimitPage(page: Page): Promise<void> {
   await page.waitForLoadState('load', { timeout: 5_000 }).catch(() => undefined);
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-  await page.waitForTimeout(5_000);
+  console.log('Google challenge detected. Waiting 60 seconds for manual captcha resolution...');
+  await page.waitForTimeout(RATE_LIMIT_USER_WAIT_MS);
 }
 
 async function promptManualResume(message: string): Promise<void> {

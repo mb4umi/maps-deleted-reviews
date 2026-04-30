@@ -11,13 +11,15 @@
     "headed": "true opens a visible browser, which is recommended because Google may require manual interaction.",
     "resumeMode": "pause keeps the browser open for manual intervention; stop saves state and exits on blockers.",
     "outputCsvPath": "Optional. If omitted, the scraper writes output/deleted-reviews-city-searchterm.csv.",
+    "mergeCsvPath": "Optional batch output. When set with searchTerms/cities, merges generated CSV files and removes duplicate venue names.",
     "summaryPath": "Optional summary JSON override. If omitted, the scraper writes output/summary-city-searchterm.json.",
     "statePath": "Optional checkpoint override. If omitted, the scraper writes output/state-city-searchterm.json.",
     "browserProfileDir": "Persistent browser profile directory for cookies/session reuse.",
     "navigationTimeoutMs": "Timeout for page loads and Playwright actions.",
     "actionDelay": "Random delay range between actions to keep the run slow and observable.",
     "resultScrollDelayMs": "Delay after scrolling the Google Maps results panel.",
-    "maxResultScrolls": "Safety limit for result-panel scrolling during discovery."
+    "maxResultScrolls": "Safety limit for result-panel scrolling during discovery.",
+    "sortCsv": "Sort CSV rows by percentage_deleted descending, name A-Z, then deleted_reviews_max descending."
   },
   "city": "Bonn",
   "country": "Germany",
@@ -34,5 +36,6 @@
     "maxMs": 0
   },
   "resultScrollDelayMs": 250,
-  "maxResultScrolls": 80
+  "maxResultScrolls": 80,
+  "sortCsv": true
 }

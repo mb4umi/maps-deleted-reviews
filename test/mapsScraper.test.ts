@@ -18,6 +18,15 @@ describe('detectBlockerText', () => {
   it('classifies unusual traffic challenges as rate limits', () => {
     expect(detectBlockerKind('unusual traffic captcha')).toBe('rate-limit');
   });
+
+  it('classifies German unusual activity challenges as rate limits', () => {
+    expect(detectBlockerKind('Wir haben ungewöhnliche Aktivität festgestellt')).toBe(
+      'rate-limit',
+    );
+    expect(detectBlockerText('Wir haben ungewöhnliche Aktivität festgestellt')).toBe(
+      'Google appears to be throttling or challenging the session',
+    );
+  });
 });
 
 const completedState: ScraperState = {
